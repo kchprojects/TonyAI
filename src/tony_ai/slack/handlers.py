@@ -2,9 +2,18 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 import time
 from slack_bolt import App
+
+from tony_ai.mcp.git_workflow import (
+    start_request,
+    commit_task,
+    finish_request,
+    _load_state,
+    _save_state,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -172,6 +181,23 @@ class SlackEventStream:
         except Exception as exc:
             logger.debug(f"chat_update failed: {exc}")
 
+# ---------------------------------------------------------------------------
+# Text-intent fallback: detect common code-change requests without $code prefix
+# ---------------------------------------------------------------------------
+
+_CODE_INTENT_RE = re.compile(
+    r'\b(?:fix|add|implement|update|refactor|change|modify|create|delete|remove)\b',
+    re.IGNORECASE,
+)
+
+
+def _is_code_change_intent(text: str) -> bool:
+    """Return True when text looks like a code-change request (no $-command prefix)."""
+    if text.startswith("$"):
+        return False
+    return bool(_CODE_INTENT_RE.search(text))
+
+
 def _handle_message(event, say, client) -> None:
     """Handle DMs and messages"""
     if event.get("bot_id"):
@@ -199,6 +225,109 @@ def _handle_message(event, say, client) -> None:
         else:
             _pro_threads.add(thread_ts)
             client.chat_postMessage(channel=channel, thread_ts=thread_ts, text="_Pro mode on._")
+        return
+
+    # Handle $code (explicit) or text-intent fallback — deterministic git workflow
+    if text.startswith("$code") or _is_code_change_intent(text):
+        if text.startswith("$code"):
+            parts = text.split(None, 1)
+            description = parts[1].strip() if len(parts) > 1 else "code change"
+        else:
+            description = text
+
+        placeholder = client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text="_Thinking..._",
+        )
+        placeholder_ts = placeholder["ts"]
+        stream = SlackEventStream(client, channel, thread_ts, placeholder_ts)
+
+        # Idempotency: resume on active branch if one already exists
+        state = _load_state()
+        active_branch = state.get("branch")
+
+        if not active_branch:
+            client.chat_postMessage(
+                channel=channel, thread_ts=thread_ts,
+                text=f"_Starting branch for: {description}_",
+            )
+            start_result = start_request(description)
+            if "error" in start_result:
+                client.chat_postMessage(
+                    channel=channel, thread_ts=thread_ts,
+                    text=f"❌ Failed to start branch: {start_result['error']}",
+                )
+                return
+            active_branch = start_result["branch"]
+            client.chat_postMessage(
+                channel=channel, thread_ts=thread_ts,
+                text=f"_Branch `{active_branch}` created._",
+            )
+        else:
+            client.chat_postMessage(
+                channel=channel, thread_ts=thread_ts,
+                text=f"_Resuming on existing branch `{active_branch}`._",
+            )
+
+        # Run the agent
+        try:
+            response = _loop.run_until_complete(
+                _agent.send(thread_ts, description, on_event=stream.handle, pro=thread_ts in _pro_threads)
+            )
+        except Exception as exc:
+            logger.error(f"$code agent error: {exc}", exc_info=True)
+            client.chat_postMessage(
+                channel=channel, thread_ts=thread_ts,
+                text=f"❌ Agent failed: {exc}",
+            )
+            return
+
+        try:
+            client.chat_update(channel=channel, ts=placeholder_ts, text=response)
+        except Exception as exc:
+            logger.debug(f"chat_update failed: {exc}")
+
+        # Commit
+        client.chat_postMessage(
+            channel=channel, thread_ts=thread_ts, text="_Committing changes..._"
+        )
+        commit_result = commit_task(description)
+        if "error" in commit_result:
+            client.chat_postMessage(
+                channel=channel, thread_ts=thread_ts,
+                text=f"❌ Commit failed: {commit_result['error']}",
+            )
+            return
+
+        if commit_result.get("status") == "nothing_to_commit":
+            client.chat_postMessage(
+                channel=channel, thread_ts=thread_ts,
+                text="_No changes to commit — skipping PR._",
+            )
+            _save_state({})
+            return
+
+        # Open PR
+        client.chat_postMessage(
+            channel=channel, thread_ts=thread_ts, text="_Opening PR..._"
+        )
+        pr_result = finish_request(description, f"Automated PR for: {description}")
+        if "error" in pr_result:
+            client.chat_postMessage(
+                channel=channel, thread_ts=thread_ts,
+                text=f"❌ PR creation failed: {pr_result['error']}",
+            )
+            return
+
+        # Clear workflow state so the next $code starts fresh
+        _save_state({})
+
+        pr_url = pr_result.get("pr_url", "")
+        client.chat_postMessage(
+            channel=channel, thread_ts=thread_ts,
+            text=f"✅ PR created: {pr_url}",
+        )
         return
 
     # Post a placeholder while generating the response
