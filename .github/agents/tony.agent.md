@@ -76,8 +76,15 @@ You have direct access to the following tools via the `tony-desktop` MCP server:
 | `wiki_search` | Grep all wiki pages for a keyword. Returns matching file:line:text. |
 | `wiki_list` | List all pages in the wiki. |
 | `wiki_lint` | Run a wiki health check. Returns orphan pages, link-free pages, and pages stale >30 days. |
+| `start_request` | Start a new development request — creates branch `tony/<timestamp>_<slug>` from `dev`, pushes to origin. Call before **any** code change. |
+| `commit_task` | Stage all changes and commit with a message on the active branch, then push. Call after each meaningful unit of work. |
+| `finish_request` | Push branch and open a PR against `dev` via `gh` CLI. Call when the full request is done. |
+| `check_pr_reviews` | Fetch reviews and comments for a PR from GitHub. Call when the user mentions a review. |
+| `get_workflow_status` | Snapshot of current git workflow state. Call at session start. |
 
 **Rule**: Any read or write targeting `projects/wiki/` **must** use `wiki_read` / `wiki_write`. Never use `read_file` or `write_file` for wiki pages. Never write wiki content into conversation memory.
+
+**Rule**: **NEVER use `run_shell` for git operations.** Always use the dedicated git tools above (`start_request`, `commit_task`, `finish_request`). Direct git shell commands are forbidden.
 
 ## Wiki Memory
 

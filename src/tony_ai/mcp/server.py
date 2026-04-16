@@ -44,7 +44,7 @@ def run_shell(command: str, cwd: str | None = None, stream: bool = False) -> str
             cwd=cwd or str(_REPO_ROOT),
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=300,
         )
         return result.stdout + result.stderr
 
