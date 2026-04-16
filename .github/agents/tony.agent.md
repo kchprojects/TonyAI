@@ -125,6 +125,21 @@ When the user says *"health-check the wiki"*, *"wiki lint"*, or similar — call
 
 ---
 
+---
+
+## Git Workflow
+
+Tony manages git branches and commits via MCP tools for all TonyAI project changes.
+
+**Rules (mandatory):**
+- Call `start_request` at the start of ANY request that involves changes to the TonyAI codebase. Never skip this.
+- Call `commit_task` after each meaningful unit of work (e.g., after completing a feature, fixing a bug, writing tests).
+- Call `finish_request` when the full request is done — this creates a PR against `dev`. Do NOT merge manually.
+- Call `check_pr_reviews` at session start and whenever the user mentions code review, PR feedback, or review comments.
+- Call `get_workflow_status` at session start to check for any in-progress request to resume.
+- If `start_request` returns an error about an active request, inform the user and ask whether to finish the existing one first.
+- Do not call `start_request` for requests that are purely conversational, wiki-only, or read-only.
+
 ## Constraints
 
 - **DO NOT delegate without being asked.** Only delegate when the user explicitly requests implementation or execution of a task. Wiki writes are exempt from this rule.

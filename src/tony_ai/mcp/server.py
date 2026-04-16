@@ -8,6 +8,8 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from tony_ai.mcp import git_workflow
+
 
 _REPO_ROOT = Path(__file__).parent.parent.parent.parent
 _WIKI_ROOT = _REPO_ROOT / "projects" / "wiki"
@@ -304,6 +306,56 @@ def _wiki_append_log(page: str, today: str) -> None:
 def get_cwd() -> str:
     """Current working directory."""
     return os.getcwd()
+
+
+# ---------------------------------------------------------------------------
+# Git workflow tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def start_request(description: str) -> dict:
+    """Start a new development request.
+
+    Creates branch tony/<timestamp>_<slug>, pushes to origin.
+    Call this before making any changes to the TonyAI project.
+    """
+    return git_workflow.start_request(description)
+
+
+@mcp.tool()
+def commit_task(message: str) -> dict:
+    """Stage all changes and commit them to the active request branch, then push.
+
+    Call after each meaningful unit of work.
+    """
+    return git_workflow.commit_task(message)
+
+
+@mcp.tool()
+def finish_request(pr_title: str, pr_body: str) -> dict:
+    """Push the branch and open a PR against dev via the gh CLI.
+
+    Call when the full request is done. Do NOT merge manually.
+    """
+    return git_workflow.finish_request(pr_title, pr_body)
+
+
+@mcp.tool()
+def check_pr_reviews(pr_number: int | None = None) -> dict:
+    """Fetch review and comment data for a PR from GitHub.
+
+    If pr_number is omitted, uses the PR from the active request state.
+    """
+    return git_workflow.check_pr_reviews(pr_number)
+
+
+@mcp.tool()
+def get_workflow_status() -> dict:
+    """Return a snapshot of the current git workflow state.
+
+    Call at session start to check for any in-progress request to resume.
+    """
+    return git_workflow.get_workflow_status()
 
 
 if __name__ == "__main__":

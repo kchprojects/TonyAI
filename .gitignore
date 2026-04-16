@@ -5,4 +5,5 @@
 __pycache__
 *.log
 projects
+src/tony_ai/mcp/git_state.json
 
