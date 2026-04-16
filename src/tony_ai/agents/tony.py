@@ -64,20 +64,25 @@ class TonyAgent:
         thread_ts: str,
         text: str,
         on_delta: Callable[[str], None] | None = None,
+        on_event: Callable[[Any], None] | None = None,
         pro: bool = False,
     ) -> str:
         logger.info(f"send() called: thread_ts={thread_ts}, text={text[:50]}..., pro={pro}")
         session = await self._get_or_create_session(thread_ts, pro=pro)
         logger.debug(f"got session for thread {thread_ts}")
 
-        unsubscribe = None
+        unsubs: list[Callable[[], None]] = []
+
         if on_delta is not None:
             def delta_handler(event: Any) -> None:
                 if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
                     delta = getattr(event.data, "delta_content", None)
                     if delta:
                         on_delta(delta)
-            unsubscribe = session.on(delta_handler)
+            unsubs.append(session.on(delta_handler))
+
+        if on_event is not None:
+            unsubs.append(session.on(on_event))
 
         try:
             _state.session_busy(thread_ts, text[:60])
@@ -94,8 +99,8 @@ class TonyAgent:
             return content
         finally:
             _state.session_idle(thread_ts)
-            if unsubscribe is not None:
-                unsubscribe()
+            for unsub in unsubs:
+                unsub()
 
     async def _get_or_create_session(self, thread_ts: str, pro: bool = False) -> Any:
         await self.start()
