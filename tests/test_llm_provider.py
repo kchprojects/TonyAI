@@ -1,6 +1,6 @@
 import pytest
 
-from src.llm.provider import AnthropicProvider, GitHubCopilotProvider, get_provider
+from tony_ai.llm.provider import AnthropicProvider, GitHubCopilotProvider, get_provider
 
 
 def test_default_provider_is_github_copilot(monkeypatch) -> None:

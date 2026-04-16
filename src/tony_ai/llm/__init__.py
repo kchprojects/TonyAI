@@ -1,4 +1,4 @@
-from src.llm.provider import (
+from tony_ai.llm.provider import (
     AnthropicProvider,
     GitHubCopilotProvider,
     LLMProvider,

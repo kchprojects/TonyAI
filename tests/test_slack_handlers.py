@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 os.environ.setdefault("SLACK_BOT_TOKEN", "xoxb-test")
 os.environ.setdefault("SLACK_APP_TOKEN", "xapp-test")
 
-from src.slack import handlers
+from tony_ai.slack import handlers
 
 
 class FakeApp:

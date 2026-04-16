@@ -7,7 +7,7 @@ import pytest
 os.environ.setdefault("SLACK_BOT_TOKEN", "xoxb-test")
 os.environ.setdefault("SLACK_APP_TOKEN", "xapp-test")
 
-from src.agents.tony import TonyAgent
+from tony_ai.agents.tony import TonyAgent
 
 
 @pytest.mark.asyncio

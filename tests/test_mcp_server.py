@@ -1,4 +1,4 @@
-from src.mcp.server import list_dir, read_file, run_shell, write_file
+from tony_ai.mcp.server import list_dir, read_file, run_shell, write_file
 
 
 def test_list_dir_returns_list(tmp_path) -> None:

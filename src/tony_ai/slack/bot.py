@@ -3,8 +3,8 @@ import logging
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from src.config import SLACK_APP_TOKEN, SLACK_BOT_TOKEN
-from src.slack.handlers import register_handlers
+from tony_ai.config import SLACK_APP_TOKEN, SLACK_BOT_TOKEN
+from tony_ai.slack.handlers import register_handlers
 
 # Configure logging
 logging.basicConfig(
