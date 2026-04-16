@@ -198,6 +198,17 @@ def _is_code_change_intent(text: str) -> bool:
     return bool(_CODE_INTENT_RE.search(text))
 
 
+_TONY_AI_RE = re.compile(
+    r'\b(?:TonyAI|tony[\s_]ai)\b|src/tony_ai|pyproject\.toml|README',
+    re.IGNORECASE,
+)
+
+
+def _is_tony_ai_project(text: str) -> bool:
+    """Return True when text refers to the TonyAI project by keyword or path heuristic."""
+    return bool(_TONY_AI_RE.search(text))
+
+
 def _handle_message(event, say, client) -> None:
     """Handle DMs and messages"""
     if event.get("bot_id"):
@@ -227,13 +238,19 @@ def _handle_message(event, say, client) -> None:
             client.chat_postMessage(channel=channel, thread_ts=thread_ts, text="_Pro mode on._")
         return
 
-    # Handle $code (explicit) or text-intent fallback — deterministic git workflow
-    if text.startswith("$code") or _is_code_change_intent(text):
-        if text.startswith("$code"):
-            parts = text.split(None, 1)
-            description = parts[1].strip() if len(parts) > 1 else "code change"
-        else:
-            description = text
+    # Non-$code code-change intent targeting TonyAI → recommend $code instead of executing
+    if _is_code_change_intent(text) and _is_tony_ai_project(text):
+        client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text=f"💡 That looks like a TonyAI code change. Please prefix with `$code` to trigger the managed git workflow, e.g.:\n`$code {text}`",
+        )
+        return
+
+    # Handle $code (explicit) — deterministic git workflow
+    if text.startswith("$code"):
+        parts = text.split(None, 1)
+        description = parts[1].strip() if len(parts) > 1 else "code change"
 
         placeholder = client.chat_postMessage(
             channel=channel,

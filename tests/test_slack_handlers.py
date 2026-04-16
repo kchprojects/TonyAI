@@ -298,3 +298,64 @@ def test_non_code_message_no_git_calls() -> None:
     client.chat_update.assert_called_once()
     _, kwargs = client.chat_update.call_args
     assert kwargs.get("text") == "hi there"
+
+
+# ---------------------------------------------------------------------------
+# Non-$code TonyAI code-intent: recommendation posted, no agent send, no git
+# ---------------------------------------------------------------------------
+
+def test_tony_ai_code_intent_without_dollar_code_posts_recommendation() -> None:
+    app = FakeApp()
+    handlers.register_handlers(app)
+    client = _make_client("ph.010")
+
+    with (
+        patch.object(handlers, "start_request") as start_mock,
+        patch.object(handlers, "commit_task") as commit_mock,
+        patch.object(handlers, "finish_request") as finish_mock,
+        patch.object(handlers._agent, "send", AsyncMock(return_value="nope")) as send_mock,
+    ):
+        app.message_handler(
+            {"text": "fix the bug in tony_ai config", "ts": "10.001", "channel": "C010"},
+            None,
+            client,
+        )
+
+    send_mock.assert_not_awaited()
+    start_mock.assert_not_called()
+    commit_mock.assert_not_called()
+    finish_mock.assert_not_called()
+
+    posted_texts = [c.kwargs.get("text", "") for c in client.chat_postMessage.call_args_list]
+    assert any("$code" in t for t in posted_texts), f"Expected $code recommendation, got: {posted_texts}"
+
+
+# ---------------------------------------------------------------------------
+# Non-$code non-TonyAI code-intent: treated as normal chat, no git calls
+# ---------------------------------------------------------------------------
+
+def test_non_tony_ai_code_intent_proceeds_as_normal_chat() -> None:
+    app = FakeApp()
+    handlers.register_handlers(app)
+    client = _make_client("ph.011")
+
+    with (
+        patch.object(handlers, "start_request") as start_mock,
+        patch.object(handlers, "commit_task") as commit_mock,
+        patch.object(handlers, "finish_request") as finish_mock,
+        patch.object(handlers._agent, "send", AsyncMock(return_value="chat reply")) as send_mock,
+    ):
+        app.message_handler(
+            {"text": "fix the bug in my Django app", "ts": "11.001", "channel": "C011"},
+            None,
+            client,
+        )
+
+    send_mock.assert_awaited_once()
+    start_mock.assert_not_called()
+    commit_mock.assert_not_called()
+    finish_mock.assert_not_called()
+
+    client.chat_update.assert_called_once()
+    _, kwargs = client.chat_update.call_args
+    assert kwargs.get("text") == "chat reply"

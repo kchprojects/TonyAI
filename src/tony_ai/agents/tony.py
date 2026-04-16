@@ -24,7 +24,7 @@ _VENV_PYTHON = str(_REPO_ROOT / ".venv" / "Scripts" / "python.exe")
 with open(_REPO_ROOT / ".github" / "agents" / "tony.agent.md") as f:
     SYSTEM_PROMPT = f.read()
 
-SYSTEM_PROMPT += "\n\n ***Additional Instructions*** \n\n" + f"You CANNOT access files outside of {_REPO_ROOT}. \nAll file paths are relative to {_REPO_ROOT}. \n Before doing any destructive actions like deleting files, always VERIFY with the user."
+SYSTEM_PROMPT += f"\n\n <additional_instructions> \n\n You CANNOT access files outside of {_REPO_ROOT}. \nAll file paths are relative to {_REPO_ROOT}. \n Before doing any destructive actions like deleting files, always VERIFY with the user.\n\n</additional_instructions>"
 
 _MCP_SERVERS: dict[str, MCPLocalServerConfig] = {
     "tony-desktop": MCPLocalServerConfig(
