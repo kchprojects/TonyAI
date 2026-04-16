@@ -98,6 +98,7 @@ class SlackEventStream:
         self._reasoning_last_flush = time.monotonic()
 
     def _on_tool_start(self, data) -> None:
+        return # skip tool start messages for now to reduce noise; can re-enable if we want more feedback on tool calls
         tool_call_id = getattr(data, "tool_call_id", None)
         tool_name = (
             getattr(data, "mcp_tool_name", None)
@@ -120,6 +121,7 @@ class SlackEventStream:
             self._tool_ts[tool_call_id] = resp["ts"]
 
     def _on_tool_progress(self, data) -> None:
+        return # skip progress updates for now to reduce noise; can re-enable if we want more feedback on long-running tools
         tool_call_id = getattr(data, "tool_call_id", None)
         msg = getattr(data, "progress_message", None)
         if not (tool_call_id and msg and tool_call_id in self._tool_ts):
@@ -132,6 +134,7 @@ class SlackEventStream:
         self._update(self._tool_ts[tool_call_id], f"🔧 *{tool_name}* _(running…)_\n`{msg[:300]}`")
 
     def _on_tool_complete(self, data) -> None:
+        return # skip updates on completion for now to reduce noise; can re-enable if we want more feedback on tool results
         tool_call_id = getattr(data, "tool_call_id", None)
         ts = self._tool_ts.get(tool_call_id) if tool_call_id else None
         if not ts:
