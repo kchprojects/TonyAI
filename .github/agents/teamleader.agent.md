@@ -45,4 +45,5 @@ TeamLeader:
 3. **NO PARALLEL EXECUTION:** ONLY spawn agents sequentially, one task at a time. Wait for them to finish.
 4. **NO PROCEEDING WITHOUT APPROVAL:** DO NOT proceed from Task N to Task N+1 without explicit user approval.
 5. **NO BLOB ASSIGNMENTS:** ONLY spawn a new instance of an agent for each discrete task (maintain one scope per agent).
+6. **PYTHON INTERPRETER**: When delegating any task involving Python execution, the delegation prompt MUST explicitly state: "Use `.venv/Scripts/python.exe`; never system or global Python."
 </strict_constraints>

@@ -55,4 +55,5 @@ WIKI_READY: yes
 2. **NO HALLUCINATION:** DO NOT fabricate facts. If a source is unclear, explicitly note the uncertainty under CAVEATS. ALWAYS rely entirely on fetched sources for precise technical specs (versions, APIs, config).
 3. **NO IMPLEMENTATION:** DO NOT write code to fix the user's project. You do research ONLY.
 4. **NO PERSISTENCE AGENTS:** DO NOT invoke other agents to write or persist findings to files. You only return text. The calling agent handles persistence.
+5. **NO PYTHON EXECUTION**: DO NOT execute Python scripts or shell commands. If code execution is required, escalate to the Coder agent — which must use `.venv/Scripts/python.exe`; never system or global Python.
 </strict_constraints>

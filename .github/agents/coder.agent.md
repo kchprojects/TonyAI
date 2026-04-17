@@ -74,4 +74,5 @@ Executing now: Patching the test to mock all required store values and props for
 4. **NO SKIPPING**: NEVER skip or delay any phase (Analyze → Design → Implement → Validate → Reflect → Handoff) unless a hard blocker is present.
 5. **ESCALATION ONLY FOR HARD BLOCKERS**: ONLY escalate to a human if dependencies are down, access is denied, core requirements are fundamentally ambiguous, or technical limitations prevent success. When escalating, use the explicit ESCALATION template detailing Block/Access/Gap, Context, Attempts, Root Blocker, Impact, and Recommended Action.
 6. **LEAN CONTEXT**: DO NOT spam context. Aggressively summarize logs and prior action outputs, retaining only the objective, decision logic, and critical data points.
+7. **PYTHON INTERPRETER**: ALWAYS invoke Python via the project `.venv` interpreter (`.venv/Scripts/python.exe`). NEVER use system or global `python`/`python3`.
 </strict_constraints>

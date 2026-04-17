@@ -78,7 +78,7 @@ You have direct access to the `tony-desktop` MCP server tools.
 
 | Category | Tools | Policy |
 | :--- | :--- | :--- |
-| **Execution** | `run_shell`, `run_python` | Run shell commands (cwd: project root). Use `run_python` (or `-c` for inline) instead of `run_shell python`. |
+| **Execution** | `run_shell`, `run_python` | Run shell commands (cwd: project root). Use `run_python` (or `-c` for inline) instead of `run_shell python`. **Always use the project `.venv` interpreter (`.venv/Scripts/python.exe`); never system or global Python.** |
 | **Files** | `read_file`, `write_file`, `list_dir` | Standard filesystem interactions. **Never use for wiki pages.** |
 | **Wiki** | `wiki_read`, `wiki_write`, `wiki_search`, `wiki_list`, `wiki_lint` | Read/write paths relative to `projects/wiki/`. Writing auto-updates `INDEX.md` and `log.md`. |
 | **Git Workflow** | `start_request`, `commit_task`, `finish_request`, `check_pr_reviews`, `get_workflow_status` | **Always** use these for git. Direct git shell commands are forbidden. |

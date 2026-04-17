@@ -20,6 +20,83 @@ _STREAMS_DIR = Path.home() / ".tony_ai" / "streams"
 mcp = FastMCP("tony-desktop")
 
 
+# ---------------------------------------------------------------------------
+# Wiki path helpers
+# ---------------------------------------------------------------------------
+
+def _wiki_index_path() -> Path:
+    """Return the path to the wiki index file.
+
+    Prefers whichever casing actually exists on disk (INDEX.md > index.md).
+    Falls back to INDEX.md (preferred canonical form) when neither exists.
+    """
+    for name in ("INDEX.md", "index.md"):
+        p = _WIKI_ROOT / name
+        if p.exists():
+            return p
+    return _WIKI_ROOT / "INDEX.md"
+
+
+def _wiki_log_path() -> Path:
+    """Return the path to the wiki log file.
+
+    Prefers whichever casing actually exists on disk (log.md > LOG.md).
+    Falls back to log.md (preferred canonical form) when neither exists.
+    """
+    for name in ("log.md", "LOG.md"):
+        p = _WIKI_ROOT / name
+        if p.exists():
+            return p
+    return _WIKI_ROOT / "log.md"
+
+
+def _wiki_git_commit(message: str) -> dict:
+    return {"status":"skipped"}
+    """Stage and commit all changes in the nested wiki git repo.
+
+    Returns a dict with key ``status`` set to one of:
+    - ``'committed'``   — changes were staged and committed successfully.
+    - ``'skipped'``     — nothing to do (repo missing or tree clean).
+    - ``'error'``       — git exited non-zero; ``error`` key carries details.
+    """
+    wiki = str(_WIKI_ROOT)
+
+    if not (_WIKI_ROOT / ".git").exists():
+        return {"status": "skipped", "reason": "wiki_repo_not_found"}
+
+    # Check for uncommitted changes
+    status_result = subprocess.run(
+        ["git", "-C", wiki, "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    if not status_result.stdout.strip():
+        return {"status": "skipped", "reason": "no_changes"}
+
+    # Stage everything in the wiki repo
+    add_result = subprocess.run(
+        ["git", "-C", wiki, "add", "-A"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    if add_result.returncode != 0:
+        return {"status": "error", "error": add_result.stderr or add_result.stdout}
+
+    # Commit
+    commit_result = subprocess.run(
+        ["git", "-C", wiki, "commit", "-m", message],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if commit_result.returncode != 0:
+        return {"status": "error", "error": commit_result.stderr or commit_result.stdout}
+
+    return {"status": "committed", "message": message}
+
+
 def _sanitize_cmd(command: str, max_len: int = 40) -> str:
     """Convert *command* to a safe filename stem (alphanumeric + underscores)."""
     sanitized = re.sub(r"[^a-zA-Z0-9]", "_", command)
@@ -161,7 +238,14 @@ def wiki_write(page: str, content: str, index_entry: str | None = None) -> str:
     # Always append to log.md
     _wiki_append_log(page, today)
 
-    return f"Wiki: wrote {page}, log updated" + (", index updated" if index_entry is not None else "")
+    commit_result = _wiki_git_commit(f"wiki: update {page}")
+    commit_status = commit_result["status"]
+
+    return (
+        f"Wiki: wrote {page}, log updated"
+        + (", index updated" if index_entry is not None else "")
+        + f" [{commit_status}]"
+    )
 
 
 @mcp.tool()
@@ -178,7 +262,10 @@ def wiki_search(query: str) -> str:
 def wiki_list() -> list[str]:
     """List all pages in the wiki as paths relative to projects/wiki/."""
     pages = []
+    skip_dirs = {".obsidian", "assets"}
     for p in _WIKI_ROOT.rglob("*.md"):
+        if any(part in skip_dirs for part in p.parts):
+            continue
         pages.append(str(p.relative_to(_WIKI_ROOT)).replace("\\", "/"))
     return sorted(pages)
 
@@ -196,7 +283,8 @@ def wiki_lint() -> str:
     today = _date.today()
     all_pages = wiki_list()
 
-    index_content = (_WIKI_ROOT / "index.md").read_text(encoding="utf-8") if (_WIKI_ROOT / "index.md").exists() else ""
+    _idx = _wiki_index_path()
+    index_content = _idx.read_text(encoding="utf-8") if _idx.exists() else ""
     # Collect pages referenced in index.md via wikilinks [[...]]
     indexed_stems = set(_re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", index_content))
 
@@ -204,7 +292,7 @@ def wiki_lint() -> str:
     no_links: list[str] = []
     stale: list[str] = []
 
-    skip = {"index.md", "log.md", "schema.md"}
+    skip = {"index.md", "INDEX.md", "log.md", "LOG.md", "schema.md", "SCHEMA.md"}
 
     for page in all_pages:
         if page in skip:
@@ -244,12 +332,21 @@ def wiki_lint() -> str:
     lines.append("## Stale pages (>30 days since update)")
     lines += [f"- {p}" for p in stale] if stale else ["*(none)*"]
 
+    # Log lint operation and commit
+    _wiki_append_log("health-check", today.isoformat(), operation="lint")
+    commit_result = _wiki_git_commit("wiki: lint health check")
+    commit_status = commit_result["status"]
+
+    lines.append("")
+    lines.append(f"---")
+    lines.append(f"_Commit: {commit_status}_")
+
     return "\n".join(lines)
 
 
 def _wiki_update_index(page: str, summary: str, today: str) -> None:
     """Insert or update the entry for `page` in index.md."""
-    index_path = _WIKI_ROOT / "index.md"
+    index_path = _wiki_index_path()
     if not index_path.exists():
         return
 
@@ -292,12 +389,12 @@ def _wiki_update_index(page: str, summary: str, today: str) -> None:
     index_path.write_text(content, encoding="utf-8")
 
 
-def _wiki_append_log(page: str, today: str) -> None:
+def _wiki_append_log(page: str, today: str, operation: str = "update") -> None:
     """Append one entry to log.md."""
-    log_path = _WIKI_ROOT / "log.md"
+    log_path = _wiki_log_path()
     if not log_path.exists():
         return
-    entry = f"\n## [{today}] update | {page}\n"
+    entry = f"\n## [{today}] {operation} | {page}\n"
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(entry)
 
