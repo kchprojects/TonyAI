@@ -12,7 +12,7 @@ from tony_ai.mcp import git_workflow
 
 
 _REPO_ROOT = Path(__file__).parent.parent.parent.parent
-_WIKI_ROOT = _REPO_ROOT / "projects" / "wiki"
+_WIKI_ROOT = Path(os.getenv("TONY_WIKI_ROOT", _REPO_ROOT / ".." / "tony_workspace" / "wiki"))
 _VENV_PYTHON = str(_REPO_ROOT / ".venv" / "Scripts" / "python.exe")
 
 _STREAMS_DIR = Path.home() / ".tony_ai" / "streams"
@@ -203,12 +203,12 @@ def list_dir(path: str = ".") -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Wiki tools — always operate relative to projects/wiki/
+# Wiki tools — always operate relative to _WIKI_ROOT
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
 def wiki_read(page: str) -> str:
-    """Read a wiki page. page is relative to projects/wiki/ e.g. 'personal/profile.md' or 'index.md'."""
+    """Read a wiki page. page is relative to _WIKI_ROOT e.g. 'personal/profile.md' or 'index.md'."""
     target = _WIKI_ROOT / page
     if not target.exists():
         return f"Page not found: {page}"
@@ -220,7 +220,7 @@ def wiki_write(page: str, content: str, index_entry: str | None = None) -> str:
     """Write a wiki page and handle all housekeeping automatically.
 
     Args:
-        page: Path relative to projects/wiki/, e.g. 'personal/goals.md' or 'projects/tony-ai.md'
+        page: Path relative to _WIKI_ROOT, e.g. 'personal/goals.md' or 'projects/tony-ai.md'
         content: Full markdown content to write.
         index_entry: One-line summary for index.md (e.g. 'User goals — short and long-term').
                      Pass None to skip index update (use for log/index/schema themselves).
@@ -260,7 +260,7 @@ def wiki_search(query: str) -> str:
 
 @mcp.tool()
 def wiki_list() -> list[str]:
-    """List all pages in the wiki as paths relative to projects/wiki/."""
+    """List all pages in the wiki as paths relative to _WIKI_ROOT."""
     pages = []
     skip_dirs = {".obsidian", "assets"}
     for p in _WIKI_ROOT.rglob("*.md"):
