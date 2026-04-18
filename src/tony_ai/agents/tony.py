@@ -19,12 +19,20 @@ logger = logging.getLogger(__name__)
 _state = StateTracker()
 
 _REPO_ROOT = StdPath(__file__).parent.parent.parent.parent
+_TONY_WORKSPACE = _REPO_ROOT.parent / "tony_workspace"
 _VENV_PYTHON = str(_REPO_ROOT / ".venv" / "Scripts" / "python.exe")
 
 with open(_REPO_ROOT / ".github" / "agents" / "tony.agent.md") as f:
     SYSTEM_PROMPT = f.read()
 
-SYSTEM_PROMPT += f"\n\n <additional_instructions> \n\n You CANNOT access files outside of {_REPO_ROOT}. \nAll file paths are relative to {_REPO_ROOT}. \n Before doing any destructive actions like deleting files, always VERIFY with the user.\n\n</additional_instructions>"
+SYSTEM_PROMPT += (
+    f"\n\n<additional_instructions>\n\n"
+    f"You CANNOT access files outside of {_TONY_WORKSPACE}.\n"
+    f"All your projects are located in {_TONY_WORKSPACE}.\n"
+    f"Before doing any destructive actions like deleting files, "
+    f"always VERIFY with the user.\n\n"
+    f"</additional_instructions>"
+)
 
 _MCP_SERVERS: dict[str, MCPLocalServerConfig] = {
     "tony-desktop": MCPLocalServerConfig(
