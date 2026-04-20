@@ -48,7 +48,16 @@ class SlackEventStream:
                 self._on_tool_progress(event.data)
             elif t == SessionEventType.TOOL_EXECUTION_COMPLETE:
                 self._on_tool_complete(event.data)
+            elif t == SessionEventType.SUBAGENT_SELECTED:
+                self._on_subagent_selected(event.data)
+            elif t == SessionEventType.SUBAGENT_STARTED:
+                self._on_subagent_started(event.data)
+            elif t == SessionEventType.SUBAGENT_COMPLETED:
+                self._on_subagent_completed(event.data)
+            elif t == SessionEventType.SUBAGENT_FAILED:
+                self._on_subagent_failed(event.data)
         except Exception as exc:
+            print(f"Error in SlackEventStream.handle for event type {t}: {exc}")
             logger.debug(f"SlackEventStream.handle error: {exc}", exc_info=True)
 
     # ------------------------------------------------------------------
@@ -91,7 +100,6 @@ class SlackEventStream:
         self._reasoning_last_flush = time.monotonic()
 
     def _on_tool_start(self, data) -> None:
-        return # skip tool start messages for now to reduce noise; can re-enable if we want more feedback on tool calls
         tool_call_id = getattr(data, "tool_call_id", None)
         tool_name = (
             getattr(data, "mcp_tool_name", None)
@@ -114,7 +122,6 @@ class SlackEventStream:
             self._tool_ts[tool_call_id] = resp["ts"]
 
     def _on_tool_progress(self, data) -> None:
-        return # skip progress updates for now to reduce noise; can re-enable if we want more feedback on long-running tools
         tool_call_id = getattr(data, "tool_call_id", None)
         msg = getattr(data, "progress_message", None)
         if not (tool_call_id and msg and tool_call_id in self._tool_ts):
@@ -127,7 +134,6 @@ class SlackEventStream:
         self._update(self._tool_ts[tool_call_id], f"🔧 *{tool_name}* _(running…)_\n`{msg[:300]}`")
 
     def _on_tool_complete(self, data) -> None:
-        return # skip updates on completion for now to reduce noise; can re-enable if we want more feedback on tool results
         tool_call_id = getattr(data, "tool_call_id", None)
         ts = self._tool_ts.get(tool_call_id) if tool_call_id else None
         if not ts:
@@ -143,6 +149,45 @@ class SlackEventStream:
         content = getattr(result, "content", None) if result else None
         snippet = f"\n`{content[:300]}`" if content else ""
         self._update(ts, f"{icon} *{tool_name}*{snippet}")
+
+    def _on_subagent_selected(self, data) -> None:
+        name = getattr(data, "agent_display_name", None) or getattr(data, "agent_name", None) or "agent"
+        resp = self._post(f"🤖 *{name}* _(selected…)_")
+        logger.info(f"Subagent selected: {name}, response: {resp}")
+        if resp:
+            self._agent_ts[name] = resp["ts"]
+
+    def _on_subagent_started(self, data) -> None:
+        name = getattr(data, "agent_display_name", None) or getattr(data, "agent_name", None) or "agent"
+        ts = self._agent_ts.get(name)
+        logger.info(f"Subagent started: {name}, ts={ts}")
+        if ts:
+            self._update(ts, f"🤖 *{name}* _(running…)_")
+
+    def _on_subagent_completed(self, data) -> None:
+        name = getattr(data, "agent_display_name", None) or getattr(data, "agent_name", None) or "agent"
+        ts = self._agent_ts.pop(name, None)
+        duration = getattr(data, "duration_ms", None)
+        calls = getattr(data, "total_tool_calls", None)
+        detail = f" _{duration}ms, {calls} tool calls_" if duration is not None else ""
+        text = f"✅ *{name}*{detail}"
+        logger.info(f"Subagent completed: {text}")
+        if ts:
+            self._update(ts, text)
+        else:
+            self._post(text)
+
+    def _on_subagent_failed(self, data) -> None:
+        name = getattr(data, "agent_display_name", None) or getattr(data, "agent_name", None) or "agent"
+        ts = self._agent_ts.pop(name, None)
+        reason = getattr(data, "error_reason", None) or ""
+        snippet = f"\n`{reason[:200]}`" if reason else ""
+        text = f"❌ *{name}* failed{snippet}"
+        logger.info(f"Subagent failed: {text}")
+        if ts:
+            self._update(ts, text)
+        else:
+            self._post(text)
 
     # ------------------------------------------------------------------
     # Slack helpers (never raise)

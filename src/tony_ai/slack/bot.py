@@ -35,6 +35,7 @@ class SlackBot:
         self._agent = TonyAgent()
         self._loop = asyncio.new_event_loop()
         self._pro_threads: set[str] = set()  # threads with pro model active
+        self._SemanticAnalyzer = SemanticAnalyzer(self._loop)
 
     def register_handlers(self) -> None:
         @self.app.event("message")
@@ -84,19 +85,28 @@ class SlackBot:
             client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=message)
             return 
         
-        context = SemanticAnalyzer().analyze(text)
-        stream = SlackEventStream(client, channel, thread_ts, placeholder_ts=placeholder_ts)
 
         placeholder = client.chat_postMessage(
             channel=channel,
             thread_ts=thread_ts,
-            text=f"{json.dumps(context.__dict__)}\n_Thinking..._",
+            text=f"_Analysing..._",
+        )
+        context = self._SemanticAnalyzer.analyze(text)
+        context_summary = {
+            "project": context.project_name,
+            "activities": [a.value for a in context.activities],
+            "goal": context.goal,
+        }
+        placeholder = client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text=f"{json.dumps(context_summary)}\n_Thinking..._",
         )
         placeholder_ts = placeholder["ts"]
-        stream = SlackEventStream(client, channel, thread_ts, placeholder_ts=placeholder_ts)        
+        stream = SlackEventStream(client, channel, thread_ts, placeholder_ts=placeholder_ts)
 
         send_text = text # TODO: Might want to change
-        response = self._loop.run_until_complete(self._agent.send(thread_ts, send_text, on_event=stream.handle, pro=thread_ts in _pro_threads))
+        response = self._loop.run_until_complete(self._agent.send(thread_ts, send_text, on_event=stream.handle, pro=thread_ts in self._pro_threads))
         logger.info(f"Agent response: {response}")
 
         try:

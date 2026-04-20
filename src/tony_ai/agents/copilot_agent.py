@@ -129,7 +129,7 @@ class CopilotAgent:
                 on_permission_request=PermissionHandler.approve_all,
                 streaming=True,
                 infinite_sessions={"enabled": True},
-                system_message={"text": self.get_system_prompt()},
+                system_message={"mode": "replace", "content": self.get_system_prompt()},
                 mcp_servers=get_mcp_servers(),
                 **extra,
             )
