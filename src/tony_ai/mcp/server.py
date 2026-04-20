@@ -5,7 +5,9 @@ import re
 import subprocess
 from datetime import date, datetime
 from pathlib import Path
+from typing import Optional
 
+from copilot.session import MCPLocalServerConfig
 from mcp.server.fastmcp import FastMCP
 
 from tony_ai.mcp import git_workflow
@@ -338,7 +340,7 @@ def wiki_lint() -> str:
     commit_status = commit_result["status"]
 
     lines.append("")
-    lines.append(f"---")
+    lines.append("---")
     lines.append(f"_Commit: {commit_status}_")
 
     return "\n".join(lines)
@@ -410,49 +412,37 @@ def get_cwd() -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def start_request(description: str) -> dict:
-    """Start a new development request.
-
-    Creates branch tony/<timestamp>_<slug>, pushes to origin.
-    Call this before making any changes to the TonyAI project.
-    """
-    return git_workflow.start_request(description)
-
-
-@mcp.tool()
 def commit_task(message: str) -> dict:
-    """Stage all changes and commit them to the active request branch, then push.
+    """Stage all changes and commit them on the current branch, then push.
 
-    Call after each meaningful unit of work.
+    Call when a task is finished.
     """
     return git_workflow.commit_task(message)
 
 
 @mcp.tool()
-def finish_request(pr_title: str, pr_body: str) -> dict:
-    """Push the branch and open a PR against dev via the gh CLI.
-
-    Call when the full request is done. Do NOT merge manually.
-    """
-    return git_workflow.finish_request(pr_title, pr_body)
-
-
-@mcp.tool()
-def check_pr_reviews(pr_number: int | None = None) -> dict:
-    """Fetch review and comment data for a PR from GitHub.
-
-    If pr_number is omitted, uses the PR from the active request state.
-    """
-    return git_workflow.check_pr_reviews(pr_number)
-
-
-@mcp.tool()
 def get_workflow_status() -> dict:
-    """Return a snapshot of the current git workflow state.
-
-    Call at session start to check for any in-progress request to resume.
-    """
+    """Return a snapshot of the current commit-only git workflow state."""
     return git_workflow.get_workflow_status()
+
+
+
+
+_MCP_SERVERS: Optional[dict[str, MCPLocalServerConfig]] = {}
+
+def get_mcp_servers() -> dict[str, MCPLocalServerConfig]:
+    global _MCP_SERVERS
+    if not _MCP_SERVERS:
+         _MCP_SERVERS = {
+            "tony-desktop": MCPLocalServerConfig(
+                type="stdio",
+                command=_VENV_PYTHON,
+                args=[str(_REPO_ROOT / "src" / "tony_ai" / "mcp" / "server.py")],
+                tools=["*"],
+                cwd=str(_REPO_ROOT),
+            )
+        }
+    return _MCP_SERVERS
 
 
 if __name__ == "__main__":

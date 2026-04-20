@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import sys
 
-from tony_ai.slack.bot import start
+from tony_ai.slack.bot import SlackBot
 
+
+def start() -> None:
+    bot = SlackBot()
+    bot.start()
 
 def main() -> None:
     """Entry point for the Tony AI application.
