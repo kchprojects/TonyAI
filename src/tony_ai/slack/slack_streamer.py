@@ -26,8 +26,10 @@ class SlackEventStream:
         self._reasoning_ts: str | None = None
         self._reasoning_last_flush: float = 0.0
 
-        # tool_call_id -> message ts
+        # tool_call_id -> message ts; _tool_post_ts is the shared reused post
         self._tool_ts: dict[str, str] = {}
+        self._tool_post_ts: str | None = None
+        self._agent_ts = {}
 
     # ------------------------------------------------------------------
     # Public handler — registered with session.on()
@@ -44,8 +46,8 @@ class SlackEventStream:
                 self._on_reasoning_complete(event.data)
             elif t == SessionEventType.TOOL_EXECUTION_START:
                 self._on_tool_start(event.data)
-            elif t == SessionEventType.TOOL_EXECUTION_PROGRESS:
-                self._on_tool_progress(event.data)
+            # elif t == SessionEventType.TOOL_EXECUTION_PROGRESS:
+            #     self._on_tool_progress(event.data)
             elif t == SessionEventType.TOOL_EXECUTION_COMPLETE:
                 self._on_tool_complete(event.data)
             elif t == SessionEventType.SUBAGENT_SELECTED:
@@ -116,10 +118,19 @@ class SlackEventStream:
                 args_str = str(args)[:200]
 
         line2 = f"\n`{args_str}`" if args_str else ""
-        text = f"🔧 *{tool_name}*{line2}"
-        resp = self._post(text)
-        if resp and tool_call_id:
-            self._tool_ts[tool_call_id] = resp["ts"]
+        text = f"🔧 *{tool_name}* _(running…)_{line2}"
+
+        if self._tool_post_ts:
+            self._update(self._tool_post_ts, text)
+            ts = self._tool_post_ts
+        else:
+            resp = self._post(text)
+            ts = resp["ts"] if resp else None
+            if ts:
+                self._tool_post_ts = ts
+
+        if tool_call_id and ts:
+            self._tool_ts[tool_call_id] = ts
 
     def _on_tool_progress(self, data) -> None:
         tool_call_id = getattr(data, "tool_call_id", None)
@@ -136,19 +147,53 @@ class SlackEventStream:
     def _on_tool_complete(self, data) -> None:
         tool_call_id = getattr(data, "tool_call_id", None)
         ts = self._tool_ts.get(tool_call_id) if tool_call_id else None
-        if not ts:
-            return
+
         tool_name = (
             getattr(data, "mcp_tool_name", None)
             or getattr(data, "tool_name", None)
             or "tool"
         )
         result = getattr(data, "result", None)
-        kind = str(getattr(result, "kind", "")) if result else ""
-        icon = "✅" if "success" in kind.lower() or kind == "" else "❌"
+        success = getattr(data, "success", None)
+        error = getattr(data, "error", None) or getattr(data, "error_reason", None)
+        duration_ms = getattr(data, "duration_ms", None)
+
+        # Determine icon: prefer explicit success flag on data, fall back to absence of error
+        if success is True or (success is None and not error):
+            icon = "✅"
+        else:
+            icon = "❌"
+
+        # Build descriptive snippet from result
         content = getattr(result, "content", None) if result else None
-        snippet = f"\n`{content[:300]}`" if content else ""
-        self._update(ts, f"{icon} *{tool_name}*{snippet}")
+        detailed = getattr(result, "detailed_content", None) if result else None
+        kind = getattr(result, "kind", None) if result else None
+
+        parts = []
+        if content:
+            parts.append(f"`{str(content)[:300]}`")
+        if detailed and detailed != content:
+            parts.append(f"_{str(detailed)[:200]}_")
+        if kind:
+            parts.append(f"kind: `{kind}`")
+        if error:
+            parts.append(f"⚠️ `{str(error)[:200]}`")
+        if duration_ms is not None:
+            parts.append(f"_{duration_ms}ms_")
+
+        snippet = "\n" + " · ".join(parts) if parts else ""
+        msg = f"{icon} *{tool_name}*{snippet}"
+
+        logger.info(f"Tool complete: {tool_name} {icon} success={success} duration={duration_ms}ms error={error}")
+
+        if ts:
+            self._update(ts, msg)
+            self._tool_post_ts = ts  # keep for next tool to reuse
+        else:
+            # No prior start message — post a new one and save for reuse
+            resp = self._post(msg)
+            if resp:
+                self._tool_post_ts = resp["ts"]
 
     def _on_subagent_selected(self, data) -> None:
         name = getattr(data, "agent_display_name", None) or getattr(data, "agent_name", None) or "agent"

@@ -13,6 +13,7 @@ github-copilot-sdk = "^0.2"
 mcp = {version = "^1.27", extras = ["cli"]}
 python-dotenv = "^1.0"
 gitpython = "^3.1"
+python-frontmatter = "^1.1"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "*"

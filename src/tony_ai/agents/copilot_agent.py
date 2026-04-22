@@ -12,6 +12,7 @@ from copilot.session import MCPLocalServerConfig, PermissionHandler
 from tony_ai.config import COPILOT_TOKEN, DEFAULT_MODEL, DEFAULT_PRO_MODEL
 from tony_ai.llm.provider import get_provider
 from tony_ai.mcp.server import get_mcp_servers
+from tony_ai.agents.agent_loader import load_agent_configs
 logger = logging.getLogger(__name__)
 
 
@@ -129,8 +130,9 @@ class CopilotAgent:
                 on_permission_request=PermissionHandler.approve_all,
                 streaming=True,
                 infinite_sessions={"enabled": True},
-                system_message={"mode": "replace", "content": self.get_system_prompt()},
+                system_message={"mode": "append", "content": self.get_system_prompt()},
                 mcp_servers=get_mcp_servers(),
+                custom_agents=load_agent_configs() or None,
                 **extra,
             )
             logger.info(f"session created for thread {thread_ts}")
